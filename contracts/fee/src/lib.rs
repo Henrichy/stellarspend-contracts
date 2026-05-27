@@ -8,6 +8,7 @@ mod events;
 mod reconciliation;
 mod storage;
 mod utils;
+mod fee_validation;
 mod validation;
 mod auth;
 
@@ -79,9 +80,7 @@ impl FeeContract {
         if initial_cycle == 0 {
             panic_with_error!(&env, FeeContractError::InvalidConfig);
         }
-        if !validate_fee_bps_or_panic(&env, fee_bps) {
-            panic_with_error!(&env, FeeContractError::InvalidConfig);
-        }
+        validate_fee_percentage_bounds(&env, fee_bps);
 
         write_admin(&env, &admin);
         write_token(&env, &token);
@@ -207,7 +206,7 @@ impl FeeContract {
         require_admin(&env, &_admin);
         Self::require_unlocked(&env);
 
-        validate_fee_bps_or_panic(&env, fee_bps);
+        validate_fee_percentage_bounds(&env, fee_bps);
 
         write_fee_bps(&env, fee_bps);
         FeeEvents::fee_bps_updated(&env, fee_bps);
