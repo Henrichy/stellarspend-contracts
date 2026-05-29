@@ -878,3 +878,73 @@ fn test_milestone_batch_too_large() {
 
     client.batch_mark_milestones(&user, &milestone_requests);
 }
+
+#[test]
+fn test_goal_completed_event() {
+    let (env, admin, client) = setup_test_contract();
+    let user = Address::generate(&env);
+
+    let mut requests: Vec<SavingsGoalRequest> = Vec::new(&env);
+    requests.push_back(create_valid_request(&env, &user, "savings", 100_000_000));
+    client.batch_set_savings_goals(&admin, &requests);
+
+    // Goal is not complete initially
+    let progress = client.get_goal_progress(&1).unwrap();
+    assert_eq!(progress.is_complete, false);
+
+    // Set goal amount to target amount
+    client.test_set_goal_current_amount(&1, &100_000_000);
+    client.check_and_emit_milestones(&1);
+
+    // Goal should now be complete
+    let progress_updated = client.get_goal_progress(&1).unwrap();
+    assert_eq!(progress_updated.is_complete, true);
+
+    // Verify goal_completed event was emitted
+    let events = env.events().all();
+    let completed_event = events.iter().find(|e| {
+        if e.1.len() < 2 {
+            return false;
+        }
+        if let Ok(topic0) = soroban_sdk::Symbol::try_from_val(&env, e.1.get(0).unwrap()) {
+            if let Ok(topic1) = soroban_sdk::Symbol::try_from_val(&env, e.1.get(1).unwrap()) {
+                return topic0 == soroban_sdk::symbol_short!("goal")
+                    && topic1 == soroban_sdk::symbol_short!("completed");
+            }
+        }
+        false
+    });
+    assert!(completed_event.is_some());
+}
+
+#[test]
+fn test_goal_created_already_complete_event() {
+    let (env, admin, client) = setup_test_contract();
+    let user = Address::generate(&env);
+
+    let mut requests: Vec<SavingsGoalRequest> = Vec::new(&env);
+    let mut request = create_valid_request(&env, &user, "savings", 100_000_000);
+    request.initial_contribution = 100_000_000; // Complete from start
+    requests.push_back(request);
+    client.batch_set_savings_goals(&admin, &requests);
+
+    // Goal should be complete
+    let progress = client.get_goal_progress(&1).unwrap();
+    assert_eq!(progress.is_complete, true);
+
+    // Verify goal_completed event was emitted
+    let events = env.events().all();
+    let completed_event = events.iter().find(|e| {
+        if e.1.len() < 2 {
+            return false;
+        }
+        if let Ok(topic0) = soroban_sdk::Symbol::try_from_val(&env, e.1.get(0).unwrap()) {
+            if let Ok(topic1) = soroban_sdk::Symbol::try_from_val(&env, e.1.get(1).unwrap()) {
+                return topic0 == soroban_sdk::symbol_short!("goal")
+                    && topic1 == soroban_sdk::symbol_short!("completed");
+            }
+        }
+        false
+    });
+    assert!(completed_event.is_some());
+}

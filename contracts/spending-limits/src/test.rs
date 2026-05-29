@@ -26,6 +26,8 @@ fn create_valid_request(env: &Env, user: &Address, limit: i128) -> SpendingLimit
     SpendingLimitRequest {
         user: user.clone(),
         monthly_limit: limit,
+        daily_limit: if limit >= 30 { limit / 30 } else { limit },
+        hourly_limit: if limit >= 30 { limit / 30 } else { limit },
         reset_window_seconds: 86_400,
         category: Some(symbol_short!("general")),
     }
@@ -516,4 +518,49 @@ fn test_enforce_without_limit_does_not_block() {
 
     // No limit configured for this user; enforce should be a no-op and not panic.
     client.enforce_spending_limit(&user, &1_000_000);
+}
+
+#[test]
+#[should_panic]
+fn test_enforce_spending_limit_hourly_exceeded() {
+    let (env, admin, client) = setup_test_contract();
+    let user = Address::generate(&env);
+
+    let mut requests: Vec<SpendingLimitRequest> = Vec::new(&env);
+    // 300 monthly, 10 daily, but override hourly_limit to 5.
+    let mut request = create_valid_request(&env, &user, 300);
+    request.hourly_limit = 5;
+    requests.push_back(request);
+    client.batch_update_spending_limits(&admin, &requests);
+
+    env.ledger().set_timestamp(3600); // 1 hour
+
+    // Spend of 5 is allowed.
+    client.enforce_spending_limit(&user, &5);
+
+    // This second spend in the same hour exceeds hourly limit of 5 and should panic.
+    client.enforce_spending_limit(&user, &1);
+}
+
+#[test]
+fn test_enforce_spending_limit_hourly_resets() {
+    let (env, admin, client) = setup_test_contract();
+    let user = Address::generate(&env);
+
+    let mut requests: Vec<SpendingLimitRequest> = Vec::new(&env);
+    let mut request = create_valid_request(&env, &user, 300);
+    request.hourly_limit = 5;
+    requests.push_back(request);
+    client.batch_update_spending_limits(&admin, &requests);
+
+    env.ledger().set_timestamp(3600); // hour 1
+
+    // Spend of 5 is allowed.
+    client.enforce_spending_limit(&user, &5);
+
+    // Advance 1 hour and 1 second.
+    env.ledger().set_timestamp(3600 + 3601); // hour 2
+
+    // Another spend of 5 is allowed now because the hourly window has reset.
+    client.enforce_spending_limit(&user, &5);
 }

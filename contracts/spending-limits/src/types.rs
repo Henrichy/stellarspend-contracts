@@ -26,6 +26,10 @@ pub struct SpendingLimitRequest {
     pub user: Address,
     /// New monthly spending limit (in stroops)
     pub monthly_limit: i128,
+    /// New daily spending limit (in stroops)
+    pub daily_limit: i128,
+    /// New hourly spending limit (in stroops)
+    pub hourly_limit: i128,
     /// Reset window for the spending limit (in seconds)
     pub reset_window_seconds: u64,
     /// Optional category-specific limit (e.g., "food", "entertainment")
@@ -40,6 +44,10 @@ pub struct SpendingLimit {
     pub user: Address,
     /// Monthly spending limit (in stroops)
     pub monthly_limit: i128,
+    /// Daily spending limit (in stroops)
+    pub daily_limit: i128,
+    /// Hourly spending limit (in stroops)
+    pub hourly_limit: i128,
     /// Reset window for the spending limit (in seconds)
     pub reset_window_seconds: u64,
     /// Current month's spending (in stroops)
@@ -114,6 +122,10 @@ pub enum DataKey {
     WindowSpending(Address, u64),
     /// Per-user monthly spending for a given logical month identifier.
     MonthlySpending(Address, u64),
+    /// Per-user hourly spending for a given logical hour identifier.
+    HourlySpending(Address, u64),
+    /// Per-user daily spending for a given logical day identifier.
+    DailySpending(Address, u64),
 }
 
 /// Error codes for spending limit validation and updates.
@@ -170,11 +182,12 @@ impl LimitEvents {
         env.events().publish(topics, (user.clone(), amount));
     }
 
-    /// Event emitted when a spend attempt exceeds either the daily or monthly limit.
+    /// Event emitted when a spend attempt exceeds either the hourly, daily, or monthly limit.
     pub fn limit_exceeded(
         env: &Env,
         user: &Address,
         attempted_amount: i128,
+        remaining_hourly: i128,
         remaining_daily: i128,
         remaining_monthly: i128,
     ) {
@@ -184,6 +197,7 @@ impl LimitEvents {
             (
                 user.clone(),
                 attempted_amount,
+                remaining_hourly,
                 remaining_daily,
                 remaining_monthly,
             ),
