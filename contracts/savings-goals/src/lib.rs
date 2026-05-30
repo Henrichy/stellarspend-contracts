@@ -36,6 +36,8 @@ use crate::validation::{
     validate_goal_name_unique, validate_goal_request, validate_milestone_request,
 };
 
+const PERSISTENT_TTL_BUMP: u32 = 12_614_400;
+
 /// Error codes for the savings goals contract.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u32)]
@@ -839,6 +841,12 @@ impl SavingsGoalsContract {
         env.storage()
             .persistent()
             .set(&DataKey::GoalSnapshots(goal_id), &snapshots);
+            
+        env.storage().persistent().extend_ttl(
+            &DataKey::GoalSnapshots(goal_id),
+            PERSISTENT_TTL_BUMP,
+            PERSISTENT_TTL_BUMP,
+        );
 
         GoalEvents::goal_snapshot_recorded(&env, goal_id, goal.current_amount, now);
     }
@@ -852,9 +860,18 @@ impl SavingsGoalsContract {
     /// # Returns
     /// * `Vec<GoalSnapshot>` - Vector of historical snapshots
     pub fn get_goal_snapshots(env: Env, goal_id: u64) -> Vec<GoalSnapshot> {
+        let key = DataKey::GoalSnapshots(goal_id);
+        if env.storage().persistent().has(&key) {
+            env.storage().persistent().extend_ttl(
+                &key,
+                PERSISTENT_TTL_BUMP,
+                PERSISTENT_TTL_BUMP,
+            );
+        }
+        
         env.storage()
             .persistent()
-            .get(&DataKey::GoalSnapshots(goal_id))
+            .get(&key)
             .unwrap_or(Vec::new(&env))
     }
 
