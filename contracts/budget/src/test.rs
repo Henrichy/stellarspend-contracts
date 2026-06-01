@@ -137,6 +137,40 @@ fn test_user_can_unfreeze_own_budget() {
 }
 
 #[test]
+fn test_budget_recovery() {
+    let (_, admin, user, client) = setup();
+    let (food, travel) = setup_categories(&client, &admin, &user);
+
+    // Initial state (sum = 1500)
+    assert_eq!(client.get_category_balance(&user, &food), 1_000);
+    assert_eq!(client.get_category_balance(&user, &travel), 500);
+
+    // Create checkpoint
+    client.create_recovery_checkpoint(&user);
+
+    // Modify budget
+    client.set_category_budget(&admin, &user, &food, &2_000);
+    assert_eq!(client.get_category_balance(&user, &food), 2_000);
+
+    // Restore from checkpoint
+    client.restore_budget_from_checkpoint(&user);
+
+    // Verify restored state (restored to 'default' category with sum of 1500)
+    let default_cat = symbol_short!("default");
+    assert_eq!(client.get_category_balance(&user, &default_cat), 1_500);
+    
+    // Original categories should be cleared as the whole UserBudget was replaced
+    // Testing this behavior depends on get_category_balance panic behavior
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #16)")]
+fn test_restore_without_checkpoint() {
+    let (_, _, user, client) = setup();
+    client.restore_budget_from_checkpoint(&user);
+}
+
+#[test]
 fn test_transfer_history_preserved() {
     let (_, admin, user, client) = setup();
     let (food, travel) = setup_categories(&client, &admin, &user);

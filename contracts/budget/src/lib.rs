@@ -17,8 +17,9 @@ use soroban_sdk::{
 };
 
 pub use storage::{
-    BudgetFreeze, BudgetTemplate, CategoryBudget, CategoryTransfer, DataKey, SpendingWindow,
-    UserBudget, DEFAULT_FREEZE_DURATION_SECONDS, RAPID_SPEND_THRESHOLD, RAPID_SPEND_WINDOW_SECONDS,
+    BudgetCheckpoint, BudgetFreeze, BudgetTemplate, CategoryBudget, CategoryTransfer, DataKey,
+    SpendingWindow, UserBudget, DEFAULT_FREEZE_DURATION_SECONDS, RAPID_SPEND_THRESHOLD,
+    RAPID_SPEND_WINDOW_SECONDS,
 };
 
 pub use types::Beneficiary;
@@ -52,6 +53,8 @@ pub enum BudgetError {
     NotABeneficiary = 13,
     InactivityPeriodNotElapsed = 14,
     InvalidPercentages = 15,
+    CheckpointNotFound = 16,
+    IntegrityCheckFailed = 17,
 }
 
 impl From<BudgetError> for soroban_sdk::Error {
@@ -82,6 +85,20 @@ pub struct PendingDeletion {
 pub struct BudgetEvents;
 
 impl BudgetEvents {
+    pub fn checkpoint_created(env: &Env, user: &Address, timestamp: u64) {
+        env.events().publish(
+            (symbol_short!("budget"), symbol_short!("chk_new")),
+            (user.clone(), timestamp),
+        );
+    }
+
+    pub fn budget_restored(env: &Env, user: &Address, timestamp: u64) {
+        env.events().publish(
+            (symbol_short!("budget"), symbol_short!("restored")),
+            (user.clone(), timestamp),
+        );
+    }
+
     pub fn category_budget_set(env: &Env, user: &Address, category: &Symbol, limit: i128) {
         env.events().publish(
             (
@@ -1384,6 +1401,78 @@ impl BudgetContract {
 
         save_template(&env, &new_template);
         storage::set_last_activity(&env, &user, now);
+    }
+
+    /// Creates a recovery checkpoint of the current user budget.
+    /// Note: Recovery flattens all categories into a single 'default' bucket
+    /// to ensure a clean state reset during recovery.
+    pub fn create_recovery_checkpoint(env: Env, user: Address) {
+        user.require_auth();
+        let budget = load_user_budget(&env, &user).unwrap_or_else(|| {
+            panic_with_error!(&env, BudgetError::BudgetNotFound);
+        });
+
+        let mut total_limit: i128 = 0;
+        let mut total_spent: i128 = 0;
+
+        for (_, cat) in budget.categories.iter() {
+            total_limit = total_limit.saturating_add(cat.limit);
+            total_spent = total_spent.saturating_add(cat.spent);
+        }
+
+        let checkpoint = BudgetCheckpoint {
+            owner: user.clone(),
+            limit: total_limit,
+            spent: total_spent,
+            version: 1,
+        };
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::BudgetCheckpoint(user.clone()), &checkpoint);
+        
+        BudgetEvents::checkpoint_created(&env, &user, env.ledger().timestamp());
+    }
+
+    /// Restores the user budget from the latest recovery checkpoint.
+    pub fn restore_budget_from_checkpoint(env: Env, user: Address) {
+        user.require_auth();
+        let checkpoint: BudgetCheckpoint = env
+            .storage()
+            .persistent()
+            .get(&DataKey::BudgetCheckpoint(user.clone()))
+            .unwrap_or_else(|| {
+                panic_with_error!(&env, BudgetError::CheckpointNotFound);
+            });
+
+        // Defense-in-depth: Verify internal owner field matches caller
+        if checkpoint.owner != user || checkpoint.version != 1 {
+            panic_with_error!(&env, BudgetError::IntegrityCheckFailed);
+        }
+
+        let mut categories = Map::new(&env);
+        let default_name = symbol_short!("default");
+        categories.set(
+            default_name.clone(),
+            CategoryBudget {
+                name: default_name,
+                limit: checkpoint.limit,
+                spent: checkpoint.spent,
+            },
+        );
+
+        let budget = UserBudget {
+            user: user.clone(),
+            categories,
+            last_updated: env.ledger().timestamp(),
+        };
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::UserBudget(user.clone()), &budget);
+        storage::set_last_activity(&env, &user, budget.last_updated);
+        
+        BudgetEvents::budget_restored(&env, &user, budget.last_updated);
     }
 
     fn require_admin(env: &Env, caller: &Address) {

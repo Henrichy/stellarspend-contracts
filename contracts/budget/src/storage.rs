@@ -69,6 +69,16 @@ pub struct BudgetTemplate {
     pub created_at: u64,
 }
 
+/// Checkpoint of a user budget for recovery purposes.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BudgetCheckpoint {
+    pub owner: Address,
+    pub limit: i128,
+    pub spent: i128,
+    pub version: u32,
+}
+
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DataKey {
@@ -91,6 +101,7 @@ pub enum DataKey {
     Beneficiaries(Address),
     Template(Symbol),
     UserTemplates(Address),
+    BudgetCheckpoint(Address),
 }
 
 pub fn get_user_budget(env: &Env, user: &Address) -> Option<UserBudget> {
