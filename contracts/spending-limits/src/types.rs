@@ -57,6 +57,11 @@ pub struct SpendingLimitRequest {
     pub user: Address,
     /// Monthly spending limit amount (in stroops)
     pub monthly_limit: i128,
+    /// New daily spending limit (in stroops)
+    pub daily_limit: i128,
+    /// New hourly spending limit (in stroops)
+    pub hourly_limit: i128,
+    /// Reset window for the spending limit (in seconds)
     /// Reset window in seconds (e.g., 86400 for daily)
     pub reset_window_seconds: u64,
     /// Optional spending category
@@ -73,7 +78,15 @@ pub struct SpendingLimit {
     pub user: Address,
     /// Monthly spending limit amount (in stroops)
     pub monthly_limit: i128,
+
+    /// Daily spending limit (in stroops)
+    pub daily_limit: i128,
+    /// Hourly spending limit (in stroops)
+    pub hourly_limit: i128,
+   
+
     /// Reset window in seconds
+
     pub reset_window_seconds: u64,
     /// Current spending tracked in this period
     pub current_spending: i128,
@@ -153,6 +166,10 @@ pub enum DataKey {
     WindowSpending(Address, u64),
     /// Monthly spending tracking (user, month_id).
     MonthlySpending(Address, u64),
+    /// Per-user hourly spending for a given logical hour identifier.
+    HourlySpending(Address, u64),
+    /// Per-user daily spending for a given logical day identifier.
+    DailySpending(Address, u64),
     /// Escalation configuration.
     EscalationConfig,
 }
@@ -215,14 +232,24 @@ impl LimitEvents {
         );
     }
 
+    /// Event emitted when a spend attempt exceeds either the hourly, daily, or monthly limit.
     pub fn limit_exceeded(
         env: &Env,
         user: &Address,
-        amount: i128,
-        remaining_window: i128,
+        attempted_amount: i128,
+        remaining_hourly: i128,
+        remaining_daily: i128,
         remaining_monthly: i128,
     ) {
         env.events().publish(
+            topics,
+            (
+                user.clone(),
+                attempted_amount,
+                remaining_hourly,
+                remaining_daily,
+                remaining_monthly,
+            ),
             (symbol_short!("limit"), symbol_short!("exceeded")),
             (user.clone(), amount, remaining_window, remaining_monthly),
         );

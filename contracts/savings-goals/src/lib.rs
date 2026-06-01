@@ -342,6 +342,7 @@ impl SavingsGoalsContract {
                     // Validation succeeded - create the goal
                     goal_id_counter += 1;
 
+                    let mut goal = SavingsGoal {
                     let is_complete = request.initial_contribution >= request.target_amount;
                     let created_at = env.ledger().timestamp();
                     let unlock_at = if request.lock_duration_seconds > 0 {
@@ -358,6 +359,7 @@ impl SavingsGoalsContract {
                         deadline: request.deadline,
                         created_at,
                         is_active: true,
+                        is_complete: false,
                         is_complete,
                         unlock_at,
                     };
@@ -382,6 +384,11 @@ impl SavingsGoalsContract {
                     );
                     // Emit milestone events for initial contribution
                     Self::check_and_emit_milestones(&env, goal_id_counter);
+
+                    // Update local goal variable's is_complete if it reached target
+                    if request.initial_contribution >= request.target_amount {
+                        goal.is_complete = true;
+                    }
 
                     // Update user's goal list
                     let mut user_goals: Vec<u64> = env
@@ -699,6 +706,10 @@ impl SavingsGoalsContract {
         let is_complete = goal.current_amount >= goal.target_amount;
         if goal.is_complete != is_complete {
             goal.is_complete = is_complete;
+            env.storage().persistent().set(&DataKey::Goal(goal_id), &goal);
+            if is_complete {
+                GoalEvents::goal_completed(env, goal_id, &goal.user, goal.target_amount);
+            }
             env.storage()
                 .persistent()
                 .set(&DataKey::Goal(goal_id), &goal);

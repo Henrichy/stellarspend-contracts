@@ -1020,6 +1020,30 @@ fn test_contribute_emits_milestone_events() {
     let user = Address::generate(&env);
 
     let mut requests: Vec<SavingsGoalRequest> = Vec::new(&env);
+    let mut request = create_valid_request(&env, &user, "savings", 100_000_000);
+    request.initial_contribution = 100_000_000; // Complete from start
+    requests.push_back(request);
+    client.batch_set_savings_goals(&admin, &requests);
+
+    // Goal should be complete
+    let progress = client.get_goal_progress(&1).unwrap();
+    assert_eq!(progress.is_complete, true);
+
+    // Verify goal_completed event was emitted
+    let events = env.events().all();
+    let completed_event = events.iter().find(|e| {
+        if e.1.len() < 2 {
+            return false;
+        }
+        if let Ok(topic0) = soroban_sdk::Symbol::try_from_val(&env, e.1.get(0).unwrap()) {
+            if let Ok(topic1) = soroban_sdk::Symbol::try_from_val(&env, e.1.get(1).unwrap()) {
+                return topic0 == soroban_sdk::symbol_short!("goal")
+                    && topic1 == soroban_sdk::symbol_short!("completed");
+            }
+        }
+        false
+    });
+    assert!(completed_event.is_some());
     requests.push_back(SavingsGoalRequest {
         user: user.clone(),
         goal_name: Symbol::new(&env, "milestones"),

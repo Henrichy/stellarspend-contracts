@@ -167,6 +167,8 @@ impl SpendingLimitsContract {
                     let limit = SpendingLimit {
                         user: request.user.clone(),
                         monthly_limit: request.monthly_limit,
+                        daily_limit: request.daily_limit,
+                        hourly_limit: request.hourly_limit,
                         reset_window_seconds: request.reset_window_seconds,
                         current_spending: 0, // Reset spending when updating limit
                         category: request.category.clone(),
@@ -376,16 +378,20 @@ impl SpendingLimitsContract {
 
         let now = env.ledger().timestamp();
 
-        // Derive simple logical window/month identifiers from timestamp.
+        // Derive logical window/month identifiers from timestamp.
+        const SECONDS_PER_HOUR: u64 = 3600;
         const SECONDS_PER_DAY: u64 = 86_400;
         const SECONDS_PER_MONTH: u64 = SECONDS_PER_DAY * 30;
 
-        // Reset windows are configurable and must be validated at limit setup.
-        let window_seconds = limit.reset_window_seconds;
-        let window_id = if now == 0 {
+        let hourly_window_id = if now == 0 {
             0
         } else {
-            (now - 1) / window_seconds
+            (now - 1) / SECONDS_PER_HOUR
+        };
+        let daily_window_id = if now == 0 {
+            0
+        } else {
+            (now - 1) / SECONDS_PER_DAY
         };
         let month_id = if now == 0 {
             0
@@ -393,47 +399,49 @@ impl SpendingLimitsContract {
             (now - 1) / SECONDS_PER_MONTH
         };
 
-        // Load current window and monthly totals.
-        let window_key = DataKey::WindowSpending(user.clone(), window_id);
+        // Load current window totals.
+        let hourly_key = DataKey::HourlySpending(user.clone(), hourly_window_id);
+        let daily_key = DataKey::DailySpending(user.clone(), daily_window_id);
         let monthly_key = DataKey::MonthlySpending(user.clone(), month_id);
 
-        let current_window: i128 = env.storage().persistent().get(&window_key).unwrap_or(0);
+        let current_hourly: i128 = env.storage().persistent().get(&hourly_key).unwrap_or(0);
+        let current_daily: i128 = env.storage().persistent().get(&daily_key).unwrap_or(0);
         let current_monthly: i128 = env.storage().persistent().get(&monthly_key).unwrap_or(0);
 
-        let new_window = current_window
+        let new_hourly = current_hourly
+            .checked_add(amount)
+            .unwrap_or_else(|| panic_with_error!(&env, SpendingLimitError::InvalidBatch));
+        let new_daily = current_daily
             .checked_add(amount)
             .unwrap_or_else(|| panic_with_error!(&env, SpendingLimitError::InvalidBatch));
         let new_monthly = current_monthly
             .checked_add(amount)
             .unwrap_or_else(|| panic_with_error!(&env, SpendingLimitError::InvalidBatch));
 
-        // Derive a limit for the configured reset window from the monthly limit.
-        let window_limit = if limit.monthly_limit <= 0 {
-            0
-        } else {
-            let base = limit.monthly_limit * window_seconds as i128 / SECONDS_PER_MONTH as i128;
-            if base == 0 {
-                1
-            } else {
-                base
-            }
-        };
-
-        let mut window_ok = true;
+        let mut hourly_ok = true;
+        let mut daily_ok = true;
         let mut monthly_ok = true;
 
-        if new_window > window_limit {
-            window_ok = false;
+        if new_hourly > limit.hourly_limit {
+            hourly_ok = false;
+        }
+        if new_daily > limit.daily_limit {
+            daily_ok = false;
         }
         if new_monthly > limit.monthly_limit {
             monthly_ok = false;
         }
 
-        if !window_ok || !monthly_ok {
-            let remaining_window = if current_window >= window_limit {
+        if !hourly_ok || !daily_ok || !monthly_ok {
+            let remaining_hourly = if current_hourly >= limit.hourly_limit {
                 0
             } else {
-                window_limit - current_window
+                limit.hourly_limit - current_hourly
+            };
+            let remaining_daily = if current_daily >= limit.daily_limit {
+                0
+            } else {
+                limit.daily_limit - current_daily
             };
             let remaining_monthly = if current_monthly >= limit.monthly_limit {
                 0
@@ -441,9 +449,18 @@ impl SpendingLimitsContract {
                 limit.monthly_limit - current_monthly
             };
 
-            LimitEvents::limit_exceeded(&env, &user, amount, remaining_window, remaining_monthly);
+            LimitEvents::limit_exceeded(
+                &env,
+                &user,
+                amount,
+                remaining_hourly,
+                remaining_daily,
+                remaining_monthly,
+            );
 
-            if !window_ok {
+            if !hourly_ok {
+                panic_with_error!(&env, SpendingLimitError::HourlyLimitExceeded);
+            } else if !daily_ok {
                 panic_with_error!(&env, SpendingLimitError::DailyLimitExceeded);
             } else {
                 panic_with_error!(&env, SpendingLimitError::MonthlyLimitExceeded);
@@ -473,7 +490,8 @@ impl SpendingLimitsContract {
         }
 
         // Persist updated totals.
-        env.storage().persistent().set(&window_key, &new_window);
+        env.storage().persistent().set(&hourly_key, &new_hourly);
+        env.storage().persistent().set(&daily_key, &new_daily);
         env.storage().persistent().set(&monthly_key, &new_monthly);
 
         // Keep the embedded "current_spending" and "updated_at" in sync with the

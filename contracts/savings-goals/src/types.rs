@@ -381,6 +381,15 @@ impl GoalEvents {
             .publish(topics, (batch_id, successful, failed, total_percentage));
     }
 
+    /// Event emitted when a savings goal target is reached (completed).
+    pub fn goal_completed(env: &Env, goal_id: u64, user: &Address, target_amount: i128) {
+        let topics = (
+            symbol_short!("goal"),
+            symbol_short!("completed"),
+            goal_id,
+            user.clone(),
+        );
+        env.events().publish(topics, target_amount);
     /// Event emitted when a partial withdrawal is made from a goal.
     pub fn partial_withdrawal(
         env: &Env,
