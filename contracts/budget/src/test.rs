@@ -196,7 +196,7 @@ fn test_inactivity_timeout_and_ownership_transfer() {
     client.set_category_budget(&admin, &owner, &symbol_short!("food"), &1_000);
 
     let inheritance = soroban_sdk::vec![&env, beneficiary.clone()];
-    client.register_inheritance_beneficiaries(&owner, &inheritance);
+    client.set_inheritance_bens(&owner, &inheritance);
 
     client.set_inactivity_timeout(&owner, &10);
 

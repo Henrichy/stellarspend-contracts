@@ -740,7 +740,7 @@ impl BudgetContract {
     }
 
     /// Registers inheritance beneficiaries for ownership transfer.
-    pub fn register_inheritance_beneficiaries(
+    pub fn set_inheritance_bens(
         env: Env,
         user: Address,
         beneficiaries: Vec<Address>,
