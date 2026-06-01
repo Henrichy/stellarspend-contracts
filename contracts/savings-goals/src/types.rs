@@ -394,6 +394,8 @@ impl GoalEvents {
             user.clone(),
         );
         env.events().publish(topics, target_amount);
+    }
+
     /// Event emitted when a partial withdrawal is made from a goal.
     pub fn partial_withdrawal(
         env: &Env,

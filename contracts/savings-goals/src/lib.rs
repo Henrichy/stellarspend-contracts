@@ -344,19 +344,14 @@ impl SavingsGoalsContract {
                     // Validation succeeded - create the goal
                     goal_id_counter += 1;
 
-                    let is_complete = request.initial_contribution >= request.target_amount;
                     let created_at = env.ledger().timestamp();
                     let unlock_at = if request.lock_duration_seconds > 0 {
                         created_at.saturating_add(request.lock_duration_seconds)
                     } else {
                         0
                     };
-                    let expires_at = if request.expiration_seconds > 0 {
-                        created_at.saturating_add(request.expiration_seconds)
-                    } else {
-                        0
-                    };
-                    let goal = SavingsGoal {
+                    let is_complete = request.initial_contribution >= request.target_amount;
+                    let mut goal = SavingsGoal {
                         goal_id: goal_id_counter,
                         user: request.user.clone(),
                         goal_name: request.goal_name.clone(),
@@ -365,7 +360,6 @@ impl SavingsGoalsContract {
                         deadline: request.deadline,
                         created_at,
                         is_active: true,
-                        is_complete: false,
                         is_complete,
                         unlock_at,
                         expires_at,
