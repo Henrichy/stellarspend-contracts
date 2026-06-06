@@ -29,11 +29,11 @@ pub use storage::{
 pub use types::Beneficiary;
 
 use storage::{
-    clear_budget_freeze, delete_template, get_budget_freeze, get_category_available, get_template,
-    get_transfer, get_user_budget as load_user_budget, get_user_templates, get_user_transfers,
+    clear_budget_freeze, delete_template, get_budget_config_history, get_budget_config_version,
+    get_budget_freeze, get_category_available, get_template, get_transfer,
+    get_user_budget as load_user_budget, get_user_templates, get_user_transfers,
     increment_suspicious_count, is_budget_frozen, next_transfer_id, record_spend_timestamp,
-    record_transfer, save_template, set_budget_freeze, set_user_budget,
-    save_budget_config_version, get_budget_config_history, get_budget_config_version,
+    record_transfer, save_budget_config_version, save_template, set_budget_freeze, set_user_budget,
 };
 
 /// Deletion cooldown period in seconds (24 hours).
@@ -245,7 +245,9 @@ impl BudgetContract {
             panic!("Already initialized");
         }
         env.storage().instance().set(&DataKey::Admin, &admin);
-        env.storage().instance().set(&DataKey::TotalAllocated, &0i128);
+        env.storage()
+            .instance()
+            .set(&DataKey::TotalAllocated, &0i128);
     }
 
     /// Updates a single user's budget. Admin only.
@@ -872,12 +874,7 @@ impl BudgetContract {
     /// * `DelegationNotActive` - if the delegation was revoked
     /// * `ExceedsPermission` - if amount exceeds the manager's granted max
     /// * `InvalidAmount` - if amount is zero or negative
-    pub fn delegated_update_budget(
-        env: Env,
-        manager: Address,
-        owner: Address,
-        amount: i128,
-    ) {
+    pub fn delegated_update_budget(env: Env, manager: Address, owner: Address, amount: i128) {
         manager.require_auth();
 
         if amount <= 0 {
@@ -957,11 +954,7 @@ impl BudgetContract {
     }
 
     /// Registers inheritance beneficiaries for ownership transfer.
-    pub fn set_inheritance_bens(
-        env: Env,
-        user: Address,
-        beneficiaries: Vec<Address>,
-    ) {
+    pub fn set_inheritance_bens(env: Env, user: Address, beneficiaries: Vec<Address>) {
         user.require_auth();
         storage::set_inheritance_beneficiaries(&env, &user, &beneficiaries);
         storage::set_last_activity(&env, &user, env.ledger().timestamp());
@@ -1861,7 +1854,7 @@ impl BudgetContract {
         env.storage()
             .persistent()
             .set(&DataKey::BudgetCheckpoint(user.clone()), &checkpoint);
-        
+
         BudgetEvents::checkpoint_created(&env, &user, env.ledger().timestamp());
     }
 
@@ -1902,7 +1895,7 @@ impl BudgetContract {
             .persistent()
             .set(&DataKey::UserBudget(user.clone()), &budget);
         storage::set_last_activity(&env, &user, budget.last_updated);
-        
+
         BudgetEvents::budget_restored(&env, &user, budget.last_updated);
     }
 
