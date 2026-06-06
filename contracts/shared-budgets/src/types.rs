@@ -8,6 +8,7 @@ pub const MAX_BUDGET_MEMBERS: u32 = 20;
 /// Maximum number of spending rules allowed in a budget.
 pub const MAX_SPENDING_RULES: u32 = 10;
 
+
 /// Represents a shared budget with multiple members.
 #[derive(Clone, Debug)]
 #[contracttype]
@@ -44,6 +45,8 @@ pub struct BudgetContribution {
     pub contributor: Address,
     /// Amount contributed
     pub amount: i128,
+    /// Optional memo for the contribution
+    pub memo: Option<Symbol>,
     /// Timestamp of the contribution
     pub timestamp: u64,
 }
@@ -74,6 +77,8 @@ pub enum DataKey {
     BudgetMember(u64, Address),
     /// Contribution details by ID
     Contribution(u64),
+    /// Ordered contribution IDs for a budget
+    BudgetContributions(u64),
     /// Total number of budgets created
     TotalBudgetsCreated,
     /// Total number of contributions processed
@@ -100,9 +105,16 @@ impl SharedBudgetEvents {
     }
 
     /// Event emitted when a contribution is added to a budget.
-    pub fn contribution_added(env: &Env, budget_id: u64, contributor: &Address, amount: i128) {
+    pub fn contribution_added(
+        env: &Env,
+        budget_id: u64,
+        contributor: &Address,
+        amount: i128,
+        memo: Option<Symbol>,
+    ) {
         let topics = (symbol_short!("budget"), symbol_short!("contrib"), budget_id);
-        env.events().publish(topics, (contributor.clone(), amount));
+        env.events()
+            .publish(topics, (contributor.clone(), amount, memo));
     }
 
     /// Event emitted when an allocation fails for a recipient.
@@ -156,4 +168,21 @@ impl SharedBudgetEvents {
             ),
         );
     }
+
+    /// Event emitted when budget ownership is transferred to a new account.
+    pub fn ownership_transferred(
+        env: &Env,
+        budget_id: u64,
+        previous_owner: &Address,
+        new_owner: &Address,
+    ) {
+        let topics = (
+            symbol_short!("budget"),
+            symbol_short!("xfer_own"),
+            budget_id,
+        );
+        env.events()
+            .publish(topics, (previous_owner.clone(), new_owner.clone()));
+    }
 }
+
