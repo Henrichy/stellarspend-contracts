@@ -101,17 +101,6 @@ pub struct DelegationPermission {
     pub is_active: bool,
 }
 
-/// Storage keys for the contract.
-#[derive(Clone, Debug)]
-#[contracttype]
-pub enum DataKey {
-    Admin,
-    Budget(Address),
-    TotalAllocated,
-    /// Delegation: (owner, manager) -> DelegationPermission
-    Delegation(Address, Address),
-    /// List of active manager addresses for an owner
-    OwnerDelegates(Address),
 /// Pending deletion record with cooldown expiry timestamp.
 #[derive(Clone, Debug)]
 #[contracttype]
