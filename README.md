@@ -91,3 +91,33 @@ We welcome contributions.
 4. Run tests locally
 5. Open a Pull Request with a clear description
 
+
+---
+
+## ZK Private Spending Proof (Stellar Hacks Submission)
+
+We added zero-knowledge proof verification to the spending limits contract. Users can now prove their payment is within their spending limit **without revealing the actual payment amount**.
+
+### How It Works
+
+1. User generates a ZK proof off-chain using the Noir circuit in `circuits/spending_proof/`
+2. Proof is submitted to the `zk-verifier` Soroban contract on Stellar
+3. Contract verifies the proof on-chain
+4. Payment approved or rejected — amount stays completely private
+
+### Why This Matters
+
+StellarSpend handles real payments on Stellar. Adding ZK means:
+- Payment amounts are never revealed on-chain
+- Spending limits are still enforced cryptographically
+- No trust required — math proves it
+
+### ZK Circuit
+
+Located in `circuits/spending_proof/src/main.nr`
+
+### Test the Circuit
+
+```bash
+cd circuits/spending_proof && nargo check
+```
