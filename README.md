@@ -1,18 +1,21 @@
-
 # StellarSpend Contracts
 
 > Soroban smart contracts for automated budgets, savings goals, and private spending limit verification on Stellar.
 
 **Stellar Hacks: Real-World ZK Submission** — We added zero-knowledge proof verification to spending limits. Users can prove a payment is within their limit without revealing the actual amount.
+
+---
+
 ## Key Features
 
-- Privacy-preserving spending limits
-- UltraHonk proof verification
-- Soroban smart contract integration
-- Automated budget controls
-- Savings goals
-- Escrow services
-- Open-source Stellar infrastructure
+* Privacy-preserving spending limits
+* UltraHonk proof verification
+* Soroban smart contract integration
+* Automated budget controls
+* Savings goals
+* Escrow services
+* Open-source Stellar infrastructure
+
 ---
 
 ## Problem
@@ -31,29 +34,51 @@ Users generate a proof off-chain that cryptographically proves their payment is 
 
 ---
 
+## Architecture Diagram
+
+```mermaid
+flowchart TD
+    A[User Creates Payment] --> B[Noir Circuit]
+    B --> C[Generate UltraHonk Proof]
+    C --> D[Submit Proof to Stellar]
+    D --> E[zk-verifier Soroban Contract]
+    E --> F{Proof Valid?}
+
+    F -->|Yes| G[spending-limits Contract]
+    G --> H[Payment Approved]
+
+    F -->|No| I[Transaction Rejected]
+```
+
+---
+
 ## Demo Video
 
 [Watch the ZK Spending Limit Verification Demo](https://www.loom.com/share/05ea65abf5dd4da39d0f12afbe8cd464)
 
 ---
+
 ## Proof Generation Example
 
 The spending proof circuit successfully generates and verifies a zero-knowledge proof locally using Noir and Barretenberg.
 
 ![ZK Proof Verified](docs/images/zk_proof_verified.png)
+
+---
+
 ## On-Chain Verification
 
-The generated UltraHonk proof is submitted to the `zk-verifier`
-Soroban contract.
+The generated UltraHonk proof is submitted to the `zk-verifier` Soroban contract.
 
-The verifier contract validates the proof before the
-`spending-limits` contract authorizes a payment.
+The verifier contract validates the proof before the `spending-limits` contract authorizes a payment.
 
 Without successful verification, the transaction is rejected.
 
+---
+
 ## How ZK Works
 
-```
+```text
 User wants to make a payment
           ↓
 [Off-chain] Noir circuit generates ZK proof
@@ -75,16 +100,20 @@ spending-limits contract enforces decision
 
 ## How Stellar Is Used
 
-- ZK proof is verified inside a **Soroban smart contract** deployed on Stellar
-- The `zk-verifier` contract connects directly to the existing `spending-limits` contract
-- All contract logic is written in Rust using the Soroban SDK
-- Compatible with Stellar testnet and mainnet
+* ZK proof is verified inside a **Soroban smart contract** deployed on Stellar
+* The `zk-verifier` contract connects directly to the existing `spending-limits` contract
+* All contract logic is written in Rust using the Soroban SDK
+* Compatible with Stellar testnet and mainnet
 
 ---
 
 ## ZK Circuit
 
-Located in `circuits/spending_proof/src/main.nr`
+Located in:
+
+```text
+circuits/spending_proof/src/main.nr
+```
 
 Written in **Noir** — a Rust-like ZK language.
 
@@ -104,17 +133,17 @@ The circuit takes private inputs and generates an **UltraHonk proof** verified b
 
 ## Contracts
 
-| Contract | Description |
-|----------|-------------|
-| `zk-verifier` | Verifies UltraHonk ZK proofs on Stellar ⭐ |
+| Contract          | Description                                          |
+| ----------------- | ---------------------------------------------------- |
+| `zk-verifier`     | Verifies UltraHonk ZK proofs on Stellar ⭐            |
 | `spending-limits` | Batch spending limit enforcement with ZK integration |
-| `batch-payment` | Batch payment processing |
-| `batch-rewards` | Batch reward distribution |
-| `escrow` | Escrow and fund locking |
-| `savings-goals` | Savings goal tracking |
-| `fee` | Fee management and validation |
-| `audit` | On-chain audit logging |
-| `access-control` | Role-based access control |
+| `batch-payment`   | Batch payment processing                             |
+| `batch-rewards`   | Batch reward distribution                            |
+| `escrow`          | Escrow and fund locking                              |
+| `savings-goals`   | Savings goal tracking                                |
+| `fee`             | Fee management and validation                        |
+| `audit`           | On-chain audit logging                               |
+| `access-control`  | Role-based access control                            |
 
 ---
 
@@ -122,12 +151,12 @@ The circuit takes private inputs and generates an **UltraHonk proof** verified b
 
 ### Prerequisites
 
-| Tool | Purpose | Install |
-|------|---------|---------|
-| Rust | Build contracts | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
-| Nargo | Compile ZK circuits | `noirup` |
-| Barretenberg (bb) | Generate and verify proofs | `bbup` |
-| Soroban CLI | Deploy contracts | `cargo install --locked stellar-cli` |
+| Tool              | Purpose                    | Install                                                           |
+| ----------------- | -------------------------- | ----------------------------------------------------------------- |
+| Rust              | Build contracts            | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
+| Nargo             | Compile ZK circuits        | `noirup`                                                          |
+| Barretenberg (bb) | Generate and verify proofs | `bbup`                                                            |
+| Soroban CLI       | Deploy contracts           | `cargo install --locked stellar-cli`                              |
 
 ### Step 1 — Install Nargo
 
@@ -153,7 +182,8 @@ bash ../../scripts/generate_proof.sh
 ```
 
 Expected output:
-```
+
+```text
 === Step 1: Generating witness ===
 Circuit witness successfully solved
 
@@ -183,23 +213,24 @@ cargo test --workspace
 
 ## Project Structure
 
-```
+```text
 stellarspend-contracts/
 ├── circuits/
-│   └── spending_proof/       # Noir ZK circuit
-│       ├── src/main.nr       # Circuit definition
-│       ├── Prover.toml       # Test inputs
-│       └── target/           # Generated proofs
+│   └── spending_proof/
+│       ├── src/main.nr
+│       ├── Prover.toml
+│       └── target/
 ├── contracts/
-│   ├── zk-verifier/          # ZK verifier Soroban contract
-│   ├── spending-limits/      # Spending limit enforcement
-│   ├── batch-payment/        # Batch payments
-│   ├── escrow/               # Escrow
-│   └── ...                   # 30+ other contracts
+│   ├── zk-verifier/
+│   ├── spending-limits/
+│   ├── batch-payment/
+│   ├── escrow/
+│   └── ...
 ├── scripts/
-│   └── generate_proof.sh     # One-command proof generation
+│   └── generate_proof.sh
 └── docs/
-    └── ARCHITECTURE.md       # System architecture
+    ├── ARCHITECTURE.md
+    └── images/
 ```
 
 ---
@@ -210,34 +241,35 @@ StellarSpend is an active open source project. We welcome contributors of all le
 
 ### Good First Issues
 
-Look for issues tagged `good first issue` on the [issues page](https://github.com/stellarspend/stellarspend-contracts/issues).
+Look for issues tagged `good first issue` on the Issues page.
 
 ### How To Contribute
 
 1. Fork the repository
 2. Create a branch: `git checkout -b feature/your-feature`
 3. Make your changes and add tests
-4. Run `cargo test --workspace` to verify
-5. Open a Pull Request with a clear description linking the issue
+4. Run `cargo test --workspace`
+5. Open a Pull Request with a clear description
 
 ### What We Need Help With
 
-- Additional ZK circuits for other privacy use cases
-- Soroban contract tests and edge case coverage
-- Documentation improvements
-- Frontend integration examples
+* Additional ZK circuits for privacy use cases
+* Soroban contract testing
+* Documentation improvements
+* Frontend integration examples
+* Testnet deployment guides
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Smart Contracts | Rust + Soroban SDK |
-| ZK Circuits | Noir (UltraHonk) |
-| Proof System | Barretenberg |
-| Blockchain | Stellar |
-| Testing | Cargo test + Soroban testutils |
+| Layer           | Technology                     |
+| --------------- | ------------------------------ |
+| Smart Contracts | Rust + Soroban SDK             |
+| ZK Circuits     | Noir (UltraHonk)               |
+| Proof System    | Barretenberg                   |
+| Blockchain      | Stellar                        |
+| Testing         | Cargo Test + Soroban Testutils |
 
 ---
 
